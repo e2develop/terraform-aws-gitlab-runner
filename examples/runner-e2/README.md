@@ -1,3 +1,199 @@
+# Terraform を使って Auto Scaling を利用した GitLab Runner リソース作成
+
+https://github.com/npalm/terraform-aws-gitlab-runner を利用して、GitLab Runner に必要な以下のリソースを設定する。
+
+- Auto Scaling Group（GitLab Runner の実行用）
+- Launch Template（GitLab Runner の実行用．GitLab Runner のインストールスクリプトや設定ファイルが含まれる）
+- S3 Bucket（ビルドキャッシュ用）
+- CloudWatch Logs（EC2 インスタンスのログ）
+- 上記で必要な VPC, Security Group や IAM Role, Policy など
+
+## 実行するための前提条件
+
+- [aws cli](https://aws.amazon.com/jp/cli/) で`aws-org`アカウントから`e2_awsdevelop`アカウントにスイッチロールできること
+- [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli?in=terraform/aws-get-started) がインストールされていること
+- [tfenv](https://github.com/tfutils/tfenv) がインストールされていること
+    - `terraform-aws-gitlab-runner`の実行には、Terraform のバージョンを指定する必要があるため
+- [jq](https://stedolan.github.io/jq/) がインストールされていること
+    - `terraform destroy`実行時に必要
+- [aws-vault](https://github.com/99designs/aws-vault) がインストールされていること
+    - スイッチロールやMFAを設定しているアカウントで実行する場合は、aws-vault を使って実行する必要があります。
+
+### aws cli の設定
+
+`aws-org`アカウントから`e2_awsdevelop`にスイッチロールする。
+
+各アカウントを以下に読み替えて、各ファイルを設定。
+- aws-org -> e2-org
+- e2_awsdevelop -> e2-dev
+
+~/.aws/credentials 
+```
+[e2-org]
+aws_access_key_id = アクセスキー
+aws_secret_access_key = シークレットアクセスキー
+```
+
+~/.aws/config
+
+```
+[profile e2-org]
+region = ap-northeast-1
+output = json
+
+[profile e2-dev]
+region = ap-northeast-1
+output = json
+role_arn = arn:aws:iam::977310042706:role/OrganizationAccountAccessRole
+source_profile = e2-org
+```
+
+スイッチロール確認
+```
+$  aws --profile e2-dev sts get-caller-identity 
+```
+
+以下が表示されれれば OK。
+```
+{
+    "UserId": "XXXXXXXXXXXXXXXXXXXXX:botocore-session-XXXXXXXXXX",
+    "Account": "977310042706",
+    "Arn": "arn:aws:sts::977310042706:assumed-role/OrganizationAccountAccessRole/botocore-session-XXXXXXXXXX"
+}
+```
+
+実行時に使用する AWS のプロファイルは、`variables.tf` で設定。
+
+上書きする場合は、`terraform.tfvars` とういうファイルを作成し、以下を設定する。
+
+```
+aws_profile = "プロファイル名"
+```
+
+### tfenv の設定
+
+tfenv インストール後、.terraform-version に書かれたバージョンをインストールする。
+
+```
+$ tfenv install 1.3.0
+```
+
+このディレクトリ内で以下のコマンドを実行し、上記でインストールしたバージョンが表示されれば OK。
+
+```
+$ terraform version
+```
+
+### aws-vault の設定
+
+e2-org の資格情報を登録する。
+```
+$ aws-vault add e2-org
+```
+
+以下参照
+- [\[Terraform CLI\]MFA認証を使ったAssumeRole。AWSVaultで解決 | DevelopersIO](https://dev.classmethod.jp/articles/terraform-assumerole/)
+
+## 実行
+
+あらかじめ https://gitlab.e-2.jp/admin/runners ページでレジストレーション・トークン (registration token) を確認しておく。
+
+基本は、 init -> plan -> apply
+
+
+### 0 .初期化、プラグインの設定
+
+初めて実行する場合は、以下を実行する。
+```
+$ terraform init
+```
+
+### 1. 設定、変更内容の確認
+
+```
+$ aws-vault exec e2-dev -- terraform plan
+var.registration_token
+  Enter a value: 
+レジストレーション・トークンを入力
+``````
+
+### 2. 設定、変更の実行
+
+```
+$ aws-vault exec e2-dev -- terraform apply
+var.registration_token
+  Enter a value: 
+レジストレーション・トークンを入力
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: 
+yes と入力
+``````
+
+
+### 現在の状態の確認
+
+```
+$ aws-vault exec e2-dev -- terraform show
+``````
+
+### 設定の破棄の確認
+
+```
+$ aws-vault exec e2-dev -- terraform plan -destroy
+var.registration_token
+  Enter a value: 
+レジストレーション・トークンを入力
+``````
+
+### 設定の破棄
+
+```
+$ aws-vault exec e2-dev -- terraform destroy
+var.registration_token
+  Enter a value: 
+レジストレーション・トークンを入力
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: 
+yes と入力
+``````
+
+
+## 本家の追従
+
+https://github.com/npalm/terraform-aws-gitlab-runner を`upstream`に設定する。
+
+```
+$ git remote add upstream git@github.com:npalm/terraform-aws-gitlab-runner.git
+```
+
+本家の変更を取り込む。
+
+```
+$ git fetch upstream
+$ git checkout develop
+$ git merge upstream/develop
+```
+
+## 参考
+
+- [Configuring GitLab Runner | GitLab](https://docs.gitlab.com/runner/configuration/)
+- [Runners autoscale configuration | GitLab](https://docs.gitlab.com/runner/configuration/autoscale.html)
+- [npalm/terraform-aws-gitlab-runner: Terraform module for AWS GitLab runners on ec2 (spot) instances](https://github.com/npalm/terraform-aws-gitlab-runner)
+- [npalm/gitlab-runner/aws | Terraform Registry](https://registry.terraform.io/modules/npalm/gitlab-runner/aws/latest)
+- [Terraform Moduleを用いたAWSにおけるGitLab Runnerの運用 - GeekFactory](https://int128.hatenablog.com/entry/2019/06/20/185319)
+
+
+---
+
+
 # Example - Spot Runner - Default
 
 In this scenario the runner agent is running on a single EC2 node and runners are created by [docker machine](https://docs.gitlab.com/runner/configuration/autoscale.html)
@@ -79,7 +275,7 @@ No outputs.
 
 ##  実行
 
-スイッチロールやMFAを設定しているアカウントで実行する場合は、aws-vaultを使って実行することをお勧めします。
+スイッチロールやMFAを設定しているアカウントで実行する場合は、aws-vault を使って実行することをお勧めします。
 
 ```
 % aws-vault exec e2-dev -- terraform plan -out=plan
