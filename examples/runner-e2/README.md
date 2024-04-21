@@ -94,7 +94,7 @@ $ aws-vault add e2-org
 以下参照
 - [\[Terraform CLI\]MFA認証を使ったAssumeRole。AWSVaultで解決 | DevelopersIO](https://dev.classmethod.jp/articles/terraform-assumerole/)
 
-## 実行
+## 設定を反映する
 
 あらかじめ https://gitlab.e-2.jp/admin/runners ページでレジストレーション・トークン (registration token) を確認しておく。
 
@@ -133,6 +133,19 @@ Do you want to perform these actions?
 yes と入力
 ``````
 
+### 3. NatGateway の作成
+
+以下、NatGateway を新たに作成する。  
+[Runner について](https://redmine.e-2.jp/projects/e2lan/wiki/Gitlab_CICD_%E3%81%A7%E3%83%87%E3%83%97%E3%83%AD%E3%82%A4#Runner-%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6) を参照。
+
+* 名前： gitlab-runner-nat-gateway
+* サブネット：Terraform で作成された NatGateway と同じサブネットを指定
+* 接続タイプ：パブリック
+* Elastib IP 割り当て ID：gitlab-runner-nat-gateway-eip
+
+作成できたら、費用がかかるので Terraform で作成された NatGateway と EIP は削除しておく。
+
+## 確認と破棄
 
 ### 現在の状態の確認
 
@@ -150,6 +163,9 @@ var.registration_token
 ``````
 
 ### 設定の破棄
+
+破棄の前に、作成した NatGateway は削除しておく。
+（EIP は次回設定時に使用すうるので削除しない）
 
 ```
 $ aws-vault exec e2-dev -- terraform destroy
