@@ -6,6 +6,7 @@ https://github.com/npalm/terraform-aws-gitlab-runner を利用して、GitLab Ru
 - Launch Template（GitLab Runner の実行用．GitLab Runner のインストールスクリプトや設定ファイルが含まれる）
 - S3 Bucket（ビルドキャッシュ用）
 - CloudWatch Logs（EC2 インスタンスのログ）
+- Lambda （EC2 インスタンスを終了させる）
 - 上記で必要な VPC, Security Group や IAM Role, Policy など
 
 ## 実行するための前提条件
