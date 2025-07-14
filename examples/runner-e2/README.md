@@ -195,8 +195,8 @@ $ git remote add upstream git@github.com:npalm/terraform-aws-gitlab-runner.git
 
 ```
 $ git fetch upstream
-$ git checkout develop
-$ git merge upstream/develop
+$ git checkout main
+$ git merge upstream/main
 ```
 
 ## 参考
