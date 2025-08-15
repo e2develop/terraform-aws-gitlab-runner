@@ -71,6 +71,11 @@ module "runner" {
     preregistered_runner_token_ssm_parameter_name = var.preregistered_runner_token_ssm_parameter_name
   }
 
+  runner_worker_docker_machine_instance = {
+    types = ["t3.medium"]
+    volume_type = "gp3"
+  }
+
   runner_worker_gitlab_pipeline = {
     pre_build_script  = <<EOT
         '''
@@ -101,9 +106,15 @@ module "runner" {
   ]
 
   runner_worker_docker_machine_autoscaling_options = [
-    # working 9 to 5 :)
     {
-      periods    = ["* * 0-9,17-23 * * mon-fri *", "* * * * * sat,sun *"]
+      periods    = ["* * 9-22 * * mon-fri *"]
+      idle_count = 2
+      IdleCountMin = 1
+      idle_time  = 600
+      timezone   = var.timezone
+    },
+    {
+      periods    = ["* * 0-9,22-23 * * mon-fri *", "* * * * * sat,sun *"]
       idle_count = 0
       idle_time  = 60
       timezone   = var.timezone
